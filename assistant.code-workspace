@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "Agent Subproject",
+      "path": "agent"
+    },
+    {
+      "name": "Data Subproject",
+      "path": "data"
+    }
+  ],
+  "settings": {}
+}

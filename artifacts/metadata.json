@@ -1,0 +1,29 @@
+{
+  "features": [
+    "cpu_utilization_pct",
+    "memory_available_pct",
+    "disk_io_wait_ms",
+    "network_packet_drops",
+    "hardware_temperature_c"
+  ],
+  "window_size": 12,
+  "stride": 1,
+  "scaler_mean": [
+    14.99962339925766,
+    64.99906239624023,
+    11.998290998954772,
+    983.69582,
+    45.00006339309692
+  ],
+  "scaler_scale": [
+    2.283101979919691,
+    0.9685313523315031,
+    1.7325162690655844,
+    564.22651569607,
+    1.072975681742205
+  ],
+  "anomaly_threshold_mse": 0.42970094084739685,
+  "threshold_percentile": 99.5,
+  "train_mse_mean": 0.18583309650421143,
+  "train_mse_std": 0.07644813507795334
+}

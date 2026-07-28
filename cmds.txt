@@ -1,0 +1,16 @@
+___________________________________________________________________________________________[Docker]
+docker compose down --remove-orphans
+docker compose up -d
+
+___________________________________________________________________________________________[MQTT]
+docker exec -it Edge-mqtt-broker mosquitto_sub -h 127.0.0.1 -t "edge/telemetry" -v
+
+___________________________________________________________________________________________[Kafka]
+docker exec -it Cloud-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server 127.0.0.1:9092 --topic telemetry-anomalies --from-beginning
+
+___________________________________________________________________________________________[VLLM]
+curl http://localhost:8000/v1/models -UseBasicParsing
+
+
+___________________________________________________________________________________________[Qdrant]
+http://localhost:6333/dashboard#/welcome
