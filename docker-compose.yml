@@ -1,9 +1,11 @@
-version: '3.8'
-
 networks:
   ai-mesh-network:
     name: ai-mesh-network
     driver: bridge
+
+# 🔥 FIXED: Added dedicated named volumes for monitoring persistence
+volumes:
+  mesh-unified-storage:
 
 services:
   # ----------------------------------------------------
@@ -38,6 +40,8 @@ services:
       --max-num-seqs 1
       --enforce-eager
       --distributed-executor-backend mp
+      --tool-call-parser hermes
+      --enable-auto-tool-choice
 
   # ----------------------------------------------------
   # 2. EVENT GATEWAY (Apache Kafka Stream Broker)
@@ -48,7 +52,7 @@ services:
     networks:
       - ai-mesh-network
     ports:
-      - "9092:9092" 
+      - "9092:9092"
     environment:
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=broker,controller
@@ -69,10 +73,11 @@ services:
     networks:
       - ai-mesh-network
     ports:
-      - "6333:6333" 
-      - "6334:6334" 
+      - "6333:6333"
+      - "6334:6334"
     volumes:
-      - qdrant_storage:/qdrant/storage
+      # 🔥 Mounts the 'qdrant' subfolder inside the exact same volume
+      - mesh-unified-storage:/qdrant/storage:rw
 
   # ----------------------------------------------------
   # 4. EDGE VISUAL SIMULATOR (Streamlit Dashboard Interface)
@@ -88,12 +93,7 @@ services:
       - ./edge:/app
     working_dir: /app
     command: >
-      sh -c "pip install --no-cache-dir streamlit pandas paho-mqtt && 
-             streamlit run sensor.py 
-             --server.port=8501 
-             --server.address=0.0.0.0 
-             --server.enableCORS=false 
-             --server.enableXsrfProtection=false"
+      sh -c "pip install --no-cache-dir streamlit pandas paho-mqtt && streamlit run sensor.py --server.port=8501 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false"
 
   # ----------------------------------------------------
   # 5. LIGHTWEIGHT EDGE MESSAGE BUS (MQTT Mosquitto Broker)
@@ -106,9 +106,7 @@ services:
     ports:
       - "1883:1883"
     entrypoint: >
-      sh -c "mkdir -p /mosquitto/config && 
-             echo 'listener 1883 0.0.0.0\nallow_anonymous true' > /mosquitto/config/mosquitto.conf && 
-             exec mosquitto -c /mosquitto/config/mosquitto.conf"
+      sh -c "mkdir -p /mosquitto/config && echo 'listener 1883 0.0.0.0\nallow_anonymous true' > /mosquitto/config/mosquitto.conf && exec mosquitto -c /mosquitto/config/mosquitto.conf"
 
   # ----------------------------------------------------
   # 6. EDGE GATEWAY SERVICE (Decoupled TFLite Anomaly Processor)
@@ -122,9 +120,49 @@ services:
       - ./edge:/app:ro
       - ./artifacts:/artifacts:ro
     working_dir: /app
-    # 🔥 FIXED: Corrected index URL path back to Google Coral package directory endpoint
-    command: sh -c "pip install --no-cache-dir --extra-index-url https://github.io \"numpy<2\" paho-mqtt kafka-python tflite_runtime && python -u anomaly_detector.py"
+    command: sh -c "pip install --no-cache-dir --extra-index-url https://github.io tflite_runtime && pip install --no-cache-dir \"numpy<2\" paho-mqtt kafka-python && python -u anomaly_detector.py"
 
-# Persistent storage configuration block
-volumes:
-  qdrant_storage:
+  # ----------------------------------------------------
+  # 7. TELEMETRY SCRAPER (Prometheus Engine)
+  # ----------------------------------------------------
+  Cloud-prometheus:
+    image: prom/prometheus:latest
+    container_name: Cloud-prometheus
+    networks:
+      - ai-mesh-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - mesh-unified-storage:/prometheus
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo '
+        global:
+          scrape_interval: 2s
+        scrape_configs:
+          - job_name: "vllm"
+            static_configs:
+              - targets: ["Cloud-vllm:8000"]
+        ' > /etc/prometheus/prometheus.yml &&
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+  
+  # ----------------------------------------------------
+  # 8. TELEMETRY DASHBOARD (Grafana GUI)
+  # ----------------------------------------------------
+  Cloud-grafana:
+    image: grafana/grafana:latest
+    container_name: Cloud-grafana
+    networks:
+      - ai-mesh-network
+    user: '0'  # 🔥 FIXED: Runs container as root to resolve volume permission errors
+    ports:
+      - "3001:3000" # 🔄 Changed from "3000:3000" to avoid the port conflict
+    volumes:
+      - mesh-unified-storage:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+
+
